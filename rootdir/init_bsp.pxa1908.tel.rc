@@ -1,0 +1,131 @@
+on init
+    export NVM_ROOT_DIR /NVM
+    export MARVELL_RW_DIR /tmp/acat
+    # RIL properties
+    setprop rild.libpath /system/lib/libmarvell-ril.so
+
+    # set CP master or slave
+    setprop persist.radio.pcmmaster 0
+
+on fs
+# mount emmc partitions
+
+    # create directory for NVM data, and mount nvm partition on it
+    mkdir /NVM 0744 system system
+
+    # for e2fsck bad block of /NVM partition before mount
+    exec /system/bin/e2fsck -vy /dev/block/platform/soc.2/by-name/NVM
+
+    mount ext4 /dev/block/platform/soc.2/by-name/NVM /NVM nosuid nodev nodelalloc,noauto_da_alloc
+    chown system system /NVM
+    chmod 0775 /NVM
+
+    # create /tmp directory
+    mkdir /tmp 0700 system system
+    mount tmpfs tmpfs /tmp mode=0775,uid=1000,gid=1000
+
+    # install telephony modules
+    insmod /lib/modules/msocketk.ko
+    insmod /lib/modules/cploaddev.ko
+    insmod /lib/modules/seh.ko
+    insmod /lib/modules/iml_module.ko
+    insmod /lib/modules/m3rmdev.ko
+    insmod /lib/modules/citty.ko
+    insmod /lib/modules/cci_datastub.ko
+    insmod /lib/modules/ccinetdev.ko
+    insmod /lib/modules/gs_modem.ko
+    insmod /lib/modules/cidatattydev.ko
+    insmod /lib/modules/audiostub.ko pcm_master=0
+    insmod /lib/modules/ssipcmisck.ko
+
+on early-boot
+    # load AP specific files
+    exec /system/bin/mrdloader /NVM
+
+on property:ril.dumpall.enable=1
+    start dumpall
+
+on property:ril.dumpall.enable=0
+    stop dumpall
+
+on property:init.svc.nvm=stopped
+    exec /system/bin/telmon nvm
+
+on property:init.svc.atcmdsrv=stopped
+    exec /system/bin/telmon atcmdsrv
+
+on property:init.svc.diag=stopped
+    exec /system/bin/telmon diag
+
+on property:init.svc.eeh=stopped
+    exec /system/bin/telmon eeh
+    start eeh
+
+on property:init.svc.pppmodem=stopped
+    exec /system/bin/telmon pppmodem
+
+on property:init.svc.iml=stopped
+    exec /system/bin/telmon iml
+
+service eeh /system/bin/eeh -M yes
+    disabled
+    oneshot
+    group system
+
+service nvm /system/bin/nvm
+    disabled
+    oneshot
+    group system
+
+service nvm-aponly /system/bin/nvm -A
+    disabled
+    group system
+
+service diag /system/bin/diag
+    disabled
+    oneshot
+    group system
+
+service iml /system/bin/IMLLog
+    disabled
+    oneshot
+    group system
+
+service diag-aponly /system/bin/diag -A
+    disabled
+    group system
+
+service atcmdsrv /system/bin/atcmdsrv
+    disabled
+    oneshot
+    group system net_admin
+
+service atcmdsrv-aponly /system/bin/atcmdsrv -A
+    disabled
+    group system
+
+service pppmodem /system/bin/pppmodem
+    disabled
+    oneshot
+    group system
+    user system
+
+service marvelltel /system/bin/tel_launch_no_gui.sh
+    class main
+    oneshot
+    group system
+
+service dumpall /system/bin/dumpall.sh
+    oneshot
+    disabled
+
+service mfgbridge /system/bin/mfgbridge
+    oneshot
+    disabled
+
+service log_on_boot /system/bin/log_on_boot.sh
+    user radio
+    group system log
+    oneshot
+    disabled
+
